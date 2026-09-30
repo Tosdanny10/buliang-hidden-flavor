@@ -50,34 +50,63 @@ try {
   const ctx = await browser.newContext({ locale: 'zh-TW', timezoneId: 'Asia/Taipei', viewport: { width: 1280, height: 1800 } });
   const page = await ctx.newPage();
   let links = [];
+  let pageBody = '';
+  status.debug = [];
   for (const url of PAGE_URLS) {
     try {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
       await page.waitForTimeout(6000);
       const hrefs = await page.$$eval('a[href]', (as) => as.map((a) => a.href));
       links = [...new Set(hrefs.map(cleanPermalink).filter(Boolean))].slice(0, MAX_POSTS);
+      pageBody = await page.evaluate(() => document.body.innerText);
+      status.debug.push({ url, title: await page.title(), links: links.length, head: pageBody.slice(0, 200) });
       if (links.length) { status.pageUrlUsed = url; break; }
     } catch (e) { status.error += `page ${url}: ${e.message.slice(0, 120)}; `; }
   }
   status.linksFound = links.length;
   if (!links.length) throw new Error('粉專頁面讀不到任何貼文連結（可能需要登入或被擋）');
 
+  // 單篇頁面依序試 www、m 版；都讀不到時才退回用粉專頁面上的貼文文字
+  const variants = (link) => {
+    const fb = new URL(link).searchParams.get('story_fbid');
+    return fb ? [link, `https://m.facebook.com/story.php?story_fbid=${fb}&id=${PAGE_ID}`] : [link];
+  };
   for (const link of links) {
-    try {
-      await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 45000 });
-      await page.waitForTimeout(4000);
-      const body = await page.evaluate(() => document.body.innerText);
-      const text = extractPostText(body);
-      if (!text) continue;
-      status.postsSeen++;
-      const parsed = parseAnnouncement(text, todayKey);
-      if (parsed) {
-        status.announcements.push({
-          mealDate: parsed.mealDate, flavors: parsed.flavors, sourceUrl: link,
-          postedText: extractPostedText(body), messageHtml: renderMessage(parsed, link), excerpt: text.slice(0, 300),
-        });
-      }
-    } catch (e) { status.error += `post ${link}: ${e.message.slice(0, 120)}; `; }
+    let text = '';
+    let body = '';
+    for (const v of variants(link)) {
+      try {
+        await page.goto(v, { waitUntil: 'domcontentloaded', timeout: 45000 });
+        await page.waitForTimeout(4000);
+        body = await page.evaluate(() => document.body.innerText);
+        text = extractPostText(body);
+        status.debug.push({ url: v.slice(0, 90), title: await page.title(), textLen: text.length, head: body.slice(0, 200) });
+        if (text) break;
+      } catch (e) { status.error += `post ${v.slice(0, 90)}: ${e.message.slice(0, 120)}; `; }
+    }
+    if (!text) continue;
+    status.postsSeen++;
+    const parsed = parseAnnouncement(text, todayKey);
+    if (parsed) {
+      status.announcements.push({
+        mealDate: parsed.mealDate, flavors: parsed.flavors, sourceUrl: link, via: 'post',
+        postedText: extractPostedText(body), messageHtml: renderMessage(parsed, link), excerpt: text.slice(0, 300),
+      });
+    }
+  }
+  if (!status.postsSeen && pageBody) {
+    // 粉專頁面上的貼文常被截斷（「……查看更多」），截斷時寧可當作沒讀到，也不要只抓到部分口味
+    const di = pageBody.search(/明[日天]\s*\d{1,2}\s*(?:月|\/)/);
+    const truncated = di < 0 || /查看更多|……/.test(pageBody.slice(di, di + 400).split(/\n(?:所有心情|讚\n)/)[0]);
+    const parsed = truncated ? null : parseAnnouncement(pageBody, todayKey);
+    if (!truncated) status.postsSeen = 1;
+    if (parsed) {
+      status.announcements.push({
+        mealDate: parsed.mealDate, flavors: parsed.flavors, sourceUrl: links[0], via: 'timeline',
+        postedText: '', messageHtml: renderMessage(parsed, links[0]), excerpt: '',
+      });
+    }
+    status.error += truncated ? '單篇貼文讀不到，粉專頁面上的貼文被截斷，無法完整判讀; ' : '單篇貼文讀不到，改用粉專頁面文字; ';
   }
   status.fetchStatus = status.postsSeen > 0 ? 'ok' : 'fail';
   if (!status.postsSeen) status.error += '有貼文連結但讀不到任何貼文內容; ';
