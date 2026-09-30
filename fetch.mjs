@@ -59,7 +59,15 @@ try {
       const hrefs = await page.$$eval('a[href]', (as) => as.map((a) => a.href));
       links = [...new Set(hrefs.map(cleanPermalink).filter(Boolean))].slice(0, MAX_POSTS);
       pageBody = await page.evaluate(() => document.body.innerText);
-      status.debug.push({ url, title: await page.title(), links: links.length, head: pageBody.slice(0, 200) });
+      // 嘗試展開貼文的「查看更多」（不登入）；若因此跳頁就保留展開前的文字
+      let expanded = false;
+      try {
+        await page.getByText('查看更多', { exact: true }).first().click({ timeout: 4000 });
+        await page.waitForTimeout(2500);
+        if (page.url() === url) { pageBody = await page.evaluate(() => document.body.innerText); expanded = true; }
+      } catch { /* 沒有「查看更多」或點不到 */ }
+      const di = pageBody.search(/明[日天]\s*\d/);
+      status.debug.push({ url, title: await page.title(), links: links.length, expanded, head: pageBody.slice(0, 120), post: di >= 0 ? pageBody.slice(di, di + 250) : '' });
       if (links.length) { status.pageUrlUsed = url; break; }
     } catch (e) { status.error += `page ${url}: ${e.message.slice(0, 120)}; `; }
   }
@@ -69,7 +77,8 @@ try {
   // 單篇頁面依序試 www、m 版；都讀不到時才退回用粉專頁面上的貼文文字
   const variants = (link) => {
     const fb = new URL(link).searchParams.get('story_fbid');
-    return fb ? [link, `https://m.facebook.com/story.php?story_fbid=${fb}&id=${PAGE_ID}`] : [link];
+    // 官方「嵌入貼文」外掛（給其他網站匿名顯示貼文用）
+    return [link, `https://www.facebook.com/plugins/post.php?href=${encodeURIComponent(link)}&show_text=true&width=500`];
   };
   for (const link of links) {
     let text = '';
@@ -80,7 +89,9 @@ try {
         await page.waitForTimeout(4000);
         body = await page.evaluate(() => document.body.innerText);
         text = extractPostText(body);
-        status.debug.push({ url: v.slice(0, 90), title: await page.title(), textLen: text.length, head: body.slice(0, 200) });
+        // 嵌入外掛頁面沒有一般頁面的前後文，只要不是登入頁且含日期就整頁解析
+        if (!text && v.includes('/plugins/') && /明[日天]\s*\d/.test(body) && !/登入 Facebook/.test(body)) text = body;
+        status.debug.push({ url: v.slice(0, 90), title: await page.title(), textLen: text.length, head: body.slice(0, 400) });
         if (text) break;
       } catch (e) { status.error += `post ${v.slice(0, 90)}: ${e.message.slice(0, 120)}; `; }
     }
