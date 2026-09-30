@@ -1,0 +1,21 @@
+import { parseAnnouncement, renderMessage } from './parse.mjs';
+const ok = (c, m) => console.log((c ? 'PASS ' : 'FAIL ') + m);
+const s21 = `《最新公告》\n\n明日9月30日(三)\n#隱藏版\n#剝皮辣椒佐皮蛋\n🌶️🌶️（小辣）\n\n及內心黑到發亮的\n『#黑心本丸』\n（整顆皮蛋，不辣）`;
+let r = parseAnnouncement(s21, '2026-09-29');
+console.log(JSON.stringify(r));
+ok(r.mealDate === '2026-09-30', '§21 日期');
+ok(JSON.stringify(r.flavors) === JSON.stringify([{name:'剝皮辣椒佐皮蛋',spicy:'小辣',note:''},{name:'黑心本丸',spicy:'不辣',note:'整顆皮蛋'}]), '§21 兩口味/辣度/備註');
+// real FB innerText (emoji dropped, single-line header)
+const real = `《最新公告》\n明日9月30日(三) #隱藏版 #剝皮辣椒佐皮蛋\n  （小辣）\n及內心黑到發亮的『 #黑心本丸』（整顆皮蛋，不辣）\n隱藏版每人限購\n 明天的隱藏版有點狠\n「#剝皮辣椒佐皮蛋」。剝皮辣椒的微辣甘甜，加上皮蛋的濃郁香氣，再拌入蒜末與辣椒提味，香氣四溢。\n明天的隱藏版還有 #黑心本丸（皮蛋），敢吃辣的話，可以加上 #店內招牌手炒辣味菜脯\n『手作古早味紅茶 25元/杯』溫、冰 #微糖`;
+r = parseAnnouncement(real, '2026-09-29');
+ok(JSON.stringify(r.flavors) === JSON.stringify([{name:'剝皮辣椒佐皮蛋',spicy:'小辣',note:''},{name:'黑心本丸',spicy:'不辣',note:'整顆皮蛋'}]), '真實貼文：不會誤抓 #店內招牌手炒辣味菜脯 / #微糖');
+r = parseAnnouncement('《最新公告》\n明日10月1日(四) #隱藏版 #麻油雞', '2026-09-30');
+ok(r.mealDate === '2026-10-01' && r.flavors.length === 1 && r.flavors[0].name === '麻油雞' && !r.flavors[0].spicy, '單一口味、無辣度');
+r = parseAnnouncement('《最新公告》\n明日1月1日(五) #隱藏版 #佛跳牆', '2026-12-31');
+ok(r.mealDate === '2027-01-01', '跨年補年份');
+ok(parseAnnouncement('今天公休，感謝支持', '2026-09-30') === null, '非公告 → null');
+ok(parseAnnouncement('明日10月1日 隱藏版請看圖片', '2026-09-30') === null, '口味只在圖片 → null（不猜）');
+ok(parseAnnouncement('明日10月1日(四) #隱藏版', '2026-09-30') === null, '只有分類 hashtag → null');
+const html = renderMessage(parseAnnouncement(s21,'2026-09-29'), 'https://www.facebook.com/permalink.php?story_fbid=X&id=100064240500520');
+console.log(html.replace(/<br>/g,'\n').replace(/<\/?b>/g,''));
+ok(!/加大|\+5/.test(html), '訊息沒有加大 / +5');
