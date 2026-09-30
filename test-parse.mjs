@@ -19,3 +19,9 @@ ok(parseAnnouncement('明日10月1日(四) #隱藏版', '2026-09-30') === null, 
 const html = renderMessage(parseAnnouncement(s21,'2026-09-29'), 'https://www.facebook.com/permalink.php?story_fbid=X&id=100064240500520');
 console.log(html.replace(/<br>/g,'\n').replace(/<\/?b>/g,''));
 ok(!/加大|\+5/.test(html), '訊息沒有加大 / +5');
+// 官方嵌入貼文外掛（雲端實際抓到的文字）：emoji 緊接在 hashtag 後面
+const embed = `小藜ㄇㄞˋ本丸\n星期一\n\n《最新公告》\n明日9月30日(三) #隱藏版 #剝皮辣椒佐皮蛋🌶️🌶️ （小辣）\n及內心黑到發亮的『 #黑心本丸』（整顆皮蛋，不辣）\n\n⚠️隱藏版每人限購4️⃣⋯⋯\n\n查看更多\n還有 7 張`;
+r = parseAnnouncement(embed, '2026-09-29');
+ok(r && JSON.stringify(r.flavors) === JSON.stringify([{name:'剝皮辣椒佐皮蛋',spicy:'小辣',note:''},{name:'黑心本丸',spicy:'不辣',note:'整顆皮蛋'}]), '嵌入外掛文字：口味名稱不含 emoji');
+// 截斷在口味中間 → null（不猜）
+ok(parseAnnouncement('《最新公告》\n明日9月30日(三) #隱藏版 #剝皮辣椒佐皮蛋\n  （小辣）\n及…… 查看更多', '2026-09-29') === null, '口味被截斷 → null');

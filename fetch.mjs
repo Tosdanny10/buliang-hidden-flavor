@@ -41,7 +41,7 @@ function extractPostText(body) {
   return t.trim();
 }
 function extractPostedText(body) {
-  const m = body.match(/小藜ㄇㄞˋ本丸\s*\n\s*([^\n]{1,30}?(?:前|日|月|年|分鐘|小時|昨天)[^\n]{0,20})\n/);
+  const m = body.match(/小藜ㄇㄞˋ本丸\s*\n\s*([^\n]{1,30}?(?:前|日|月|年|分鐘|小時|昨天|星期)[^\n]{0,20})\n/);
   return m ? m[1].trim() : '';
 }
 
@@ -78,7 +78,7 @@ try {
   const variants = (link) => {
     const fb = new URL(link).searchParams.get('story_fbid');
     // 官方「嵌入貼文」外掛（給其他網站匿名顯示貼文用）
-    return [link, `https://www.facebook.com/plugins/post.php?href=${encodeURIComponent(link)}&show_text=true&width=500`];
+    return [`https://www.facebook.com/plugins/post.php?href=${encodeURIComponent(link)}&show_text=true&width=500`, link];
   };
   for (const link of links) {
     let text = '';

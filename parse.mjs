@@ -33,8 +33,11 @@ export function parseAnnouncement(text, todayKey) {
     header.push(line);
   }
   const h = header.join('\n');
+  // 口味區段被截斷（「⋯⋯」「查看更多」）時不判讀，避免只抓到部分口味
+  if (/查看更多|⋯⋯|……/.test(h)) return null;
 
-  const tagRe = /#([^\s#『』「」（）()，,。！!、|｜]+)/g;
+  // hashtag 口味名稱遇到空白、標點或 emoji（例如 🌶️）就結束
+  const tagRe = /#([^\s#『』「」（）()，,。！!、|｜\p{Extended_Pictographic}\u{FE0F}\u{20E3}]+)/gu;
   const tags = [];
   let tm;
   while ((tm = tagRe.exec(h))) tags.push({ name: tm[1].trim(), start: tm.index, end: tm.index + tm[0].length });
