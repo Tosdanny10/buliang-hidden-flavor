@@ -1,0 +1,22 @@
+# GitHub 會在公開 repo 60 天沒有任何提交時自動停用排程；每月 1、15 日寫一次心跳檔保持啟用
+name: keepalive
+
+on:
+  schedule:
+    - cron: '7 1 1,15 * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          date -u +%Y-%m-%dT%H:%M:%SZ > heartbeat.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add heartbeat.txt
+          git commit -m "keepalive" && git push || echo "nothing to commit"
