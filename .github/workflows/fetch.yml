@@ -1,0 +1,38 @@
+# 小藜ㄇㄞˋ本丸 明日隱藏版抓取器（雲端排程）
+# 週一至週五 台北 11:00–15:45 每 15 分鐘抓一次官方粉專（GitHub 的排程可能延遲幾分鐘，所以比 Power Automate 的 12:00–15:30 更密）
+# 結果發布到 GitHub Pages：/feed.xml（RSS，給 Power Automate 讀）與 /status.json（健康檢查）
+name: fetch-hidden-flavor
+
+on:
+  schedule:
+    - cron: '*/15 3-7 * * 1-5'   # UTC 03:00–07:45 = 台北 11:00–15:45
+  workflow_dispatch: {}          # 可在 GitHub Actions 頁面手動執行
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: fetch-hidden-flavor
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Fetch official Facebook page
+        run: node fetch.mjs
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      - uses: actions/deploy-pages@v4
