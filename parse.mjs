@@ -37,30 +37,45 @@ export function parseAnnouncement(text, todayKey) {
   if (/查看更多|⋯⋯|……/.test(h)) return null;
 
   // hashtag 口味名稱遇到空白、標點或 emoji（例如 🌶️）就結束
-  const tagRe = /#([^\s#『』「」（）()，,。！!、|｜\p{Extended_Pictographic}\u{FE0F}\u{20E3}]+)/gu;
+  const tagRe = /#([^\s#『』「」（）()，,。！!、|｜／/\p{Extended_Pictographic}\u{FE0F}\u{20E3}]+)/gu;
   const tags = [];
   let tm;
   while ((tm = tagRe.exec(h))) tags.push({ name: tm[1].trim(), start: tm.index, end: tm.index + tm[0].length });
-  const flavorTags = tags.filter((x) => x.name && !CATEGORY_TAGS.has(x.name));
-  if (flavorTags.length === 0) return null;
+  const useful = tags.filter((x) => x.name && !CATEGORY_TAGS.has(x.name));
 
+  // 店家有時把辣度、內容物、過敏提醒也寫成 hashtag（例：#香菜控皮蛋80元 #內有香菜蒜頭辣椒 #小辣 #過敏體質請注意），
+  // 這些歸到前一個口味的辣度／備註，不當成口味
   const flavors = [];
-  flavorTags.forEach((f, i) => {
-    const next = flavorTags[i + 1] ? flavorTags[i + 1].start : h.length;
-    const seg = h.slice(f.end, next);
-    let spicy = '';
-    const notes = [];
+  let cur = null;
+  useful.forEach((t, i) => {
+    if (isSpicyOnly(t.name)) { if (cur && !cur.spicy) cur.spicy = t.name.match(SPICY_RE)[1]; return; }
+    if (isNote(t.name)) { if (cur) cur.notes.push(t.name); return; }
+    const name = t.name.replace(/\d+\s*元$/, '').trim();
+    if (!name) return;
+    const existing = flavors.find((x) => x.name === name);
+    if (existing) { cur = existing; return; }
+    cur = { name, spicy: '', notes: [] };
+    flavors.push(cur);
+    const next = useful[i + 1] ? useful[i + 1].start : h.length;
+    const seg = h.slice(t.end, next);
     const paren = seg.match(/[（(]([^）)]*)[）)]/);
     if (paren) {
       for (const part of paren[1].split(/[，,、]/).map((s) => s.trim()).filter(Boolean)) {
-        if (!spicy && SPICY_RE.test(part) && part.replace(SPICY_RE, '').trim() === '') spicy = part.match(SPICY_RE)[1];
-        else notes.push(part);
+        if (!cur.spicy && isSpicyOnly(part)) cur.spicy = part.match(SPICY_RE)[1];
+        else cur.notes.push(part);
       }
     }
-    if (!spicy) { const s = seg.match(SPICY_RE); if (s && seg.indexOf(s[0]) < 20) spicy = s[1]; }
-    if (!flavors.some((x) => x.name === f.name)) flavors.push({ name: f.name, spicy, note: notes.join('、') });
+    if (!cur.spicy) { const s = seg.match(SPICY_RE); if (s && seg.indexOf(s[0]) < 20) cur.spicy = s[1]; }
   });
-  return { mealDate, flavors };
+  if (flavors.length === 0) return null;
+  return { mealDate, flavors: flavors.map((f) => ({ name: f.name, spicy: f.spicy, note: f.notes.join('、') })) };
+}
+
+function isSpicyOnly(s) { return SPICY_RE.test(s) && s.replace(SPICY_RE, '').trim() === ''; }
+// 「內有…／有花生／過敏…請注意」這類是備註；但以「本丸／丸／飯糰」結尾的仍視為口味（例如「有點鹹本丸」）
+function isNote(s) {
+  if (/(本丸|飯糰|丸)$/.test(s)) return false;
+  return /^(內有|內含|含有|含|不含|無|有|加|附|過敏|請|限|每人|售完)/.test(s) || /(注意|過敏)/.test(s);
 }
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -80,6 +95,6 @@ export function renderMessage(result, sourceUrl) {
     if (f.note) L.push(`備註：${esc(f.note)}`);
     L.push('');
   });
-  L.push('隱藏版本丸：80 元', '', '👉 點餐請至「今日點餐」', '點餐截止：今天 16:30', '', '來源：小藜ㄇㄞˋ本丸 Facebook 粉專', '原始貼文：', esc(sourceUrl));
+  L.push('隱藏版本丸：80 元', '', '👉 點餐請至「今日點餐」', '點餐截止：今天 18:30', '', '來源：小藜ㄇㄞˋ本丸 Facebook 粉專', '原始貼文：', esc(sourceUrl));
   return L.join('<br>');
 }

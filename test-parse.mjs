@@ -25,3 +25,9 @@ r = parseAnnouncement(embed, '2026-09-29');
 ok(r && JSON.stringify(r.flavors) === JSON.stringify([{name:'剝皮辣椒佐皮蛋',spicy:'小辣',note:''},{name:'黑心本丸',spicy:'不辣',note:'整顆皮蛋'}]), '嵌入外掛文字：口味名稱不含 emoji');
 // 截斷在口味中間 → null（不猜）
 ok(parseAnnouncement('《最新公告》\n明日9月30日(三) #隱藏版 #剝皮辣椒佐皮蛋\n  （小辣）\n及…… 查看更多', '2026-09-29') === null, '口味被截斷 → null');
+// 2026-10-14 新格式：辣度、內容物、過敏提醒都寫成 hashtag，價格黏在名稱後
+const fmt2 = `小藜ㄇㄞˋ本丸\n5 小時前\n\n《最新公告》\n明日10月15日（四） #隱藏版 #香菜控皮蛋80元 #內有香菜蒜頭辣椒 #小辣 #有花生粒 #過敏體質請注意⚠️ 。\n\n🔴隱藏版 （#黑心本丸／ #香菜控皮蛋）\n⚠️『隱藏版』限購2️⃣颗。謝謝🙏\n\n⋯⋯\n查看更多`;
+r = parseAnnouncement(fmt2, '2026-10-14');
+console.log(JSON.stringify(r));
+ok(r && r.mealDate === '2026-10-15' && JSON.stringify(r.flavors) === JSON.stringify([{name:'香菜控皮蛋',spicy:'小辣',note:'內有香菜蒜頭辣椒、有花生粒、過敏體質請注意'},{name:'黑心本丸',spicy:'',note:''}]), '新格式：hashtag 辣度/備註歸位、去掉 80元 與 ／、重複口味合併');
+ok(parseAnnouncement('明日10月16日(五) #隱藏版 #有點鹹本丸', '2026-10-15').flavors[0].name === '有點鹹本丸', '「有…本丸」仍是口味不是備註');
