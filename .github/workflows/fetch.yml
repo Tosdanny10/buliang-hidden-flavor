@@ -1,12 +1,14 @@
 # 小藜ㄇㄞˋ本丸 明日隱藏版抓取器（雲端排程）
-# 週一至週五 台北 11:00–15:45 每 15 分鐘抓一次官方粉專（GitHub 的排程可能延遲幾分鐘，所以比 Power Automate 的 12:00–15:30 更密）
+# 週一至週五 台北 11:00–17:45 每 15 分鐘抓一次官方粉專（GitHub 的排程可能延遲幾分鐘，所以比 Power Automate 的 12:00–17:30 更密）
 # 結果發布到 GitHub Pages：/feed.xml（RSS，給 Power Automate 讀）與 /status.json（健康檢查）
 name: fetch-hidden-flavor
 
 on:
   schedule:
-    - cron: '*/15 3-7 * * 1-5'   # UTC 03:00–07:45 = 台北 11:00–15:45
+    - cron: '*/15 3-9 * * 1-5'   # UTC 03:00–09:45 = 台北 11:00–17:45
   workflow_dispatch: {}          # 可在 GitHub Actions 頁面手動執行
+  repository_dispatch:           # Power Automate「明日隱藏版監控(雲端)」每次檢查前先叫醒抓取（GitHub 排程常延遲或跳過）
+    types: [fetch]
 
 permissions:
   contents: read
